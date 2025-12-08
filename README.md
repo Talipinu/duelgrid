@@ -104,3 +104,13 @@ Rock-Paper-Scissors Mechanik:
 
 [Zu definieren]
 
+
+
+
+
+
+
+
+
+
+

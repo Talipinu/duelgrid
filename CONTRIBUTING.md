@@ -75,3 +75,13 @@ git branch -d feature/mein-feature-name
 
 Wenn du unsicher bist, frag einfach! Es ist besser zu fragen als etwas Falsches zu machen.
 
+
+
+
+
+
+
+
+
+
+

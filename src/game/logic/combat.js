@@ -42,3 +42,13 @@ export function areAdjacent(pos1, pos2) {
   return rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0);
 }
 
+
+
+
+
+
+
+
+
+
+

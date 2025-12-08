@@ -28,3 +28,13 @@ export const BOARD_CONFIG = {
   CELL_SIZE: 50, // in Pixel (wird responsive angepasst)
 };
 
+
+
+
+
+
+
+
+
+
+

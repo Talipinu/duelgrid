@@ -22,3 +22,13 @@ export function formatPlayerName(player) {
   return player === 'player1' ? 'Spieler 1' : 'Spieler 2';
 }
 
+
+
+
+
+
+
+
+
+
+
