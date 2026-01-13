@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { COLORS } from '../constants';
@@ -6,24 +6,64 @@ import { PLAYERS } from '../game/types';
 import { createInitialGameState, switchPlayer } from '../game/logic/gameState';
 import { calculateCombatResult, areAdjacent } from '../game/logic/combat';
 import GameBoard from '../components/board/GameBoard';
+import multiplayerService from '../services/multiplayer';
+import { ref, onValue, off, set } from 'firebase/database';
+import { database } from '../services/firebase';
 
 /**
- * Haupt-Spielbildschirm
+ * Haupt-Spielbildschirm (Multiplayer)
  */
-export default function GameScreen() {
-  const [gameState, setGameState] = useState(createInitialGameState());
+export default function GameScreen({ gameRoomId, playerName, initialGameState }) {
+  const [gameState, setGameState] = useState(initialGameState || createInitialGameState());
+  const [isMyTurn, setIsMyTurn] = useState(false);
+  
+  const assignedPlayer = multiplayerService.getAssignedPlayer();
+  
+  useEffect(() => {
+    if (!gameRoomId) return;
+    
+    // Synchronisiere Spielzustand von Firebase
+    const gameRef = ref(database, `games/${gameRoomId}`);
+    const listener = onValue(gameRef, (snapshot) => {
+      const remoteGameState = snapshot.val();
+      if (remoteGameState) {
+        setGameState(remoteGameState);
+        // Prüfe ob ich am Zug bin
+        setIsMyTurn(remoteGameState.currentPlayer === assignedPlayer);
+      }
+    });
+    
+    return () => {
+      off(gameRef, 'value', listener);
+    };
+  }, [gameRoomId, assignedPlayer]);
+  
+  // Initialisiere isMyTurn
+  useEffect(() => {
+    if (gameState) {
+      setIsMyTurn(gameState.currentPlayer === assignedPlayer);
+    }
+  }, [gameState, assignedPlayer]);
 
   const handleCellPress = useCallback((row, col) => {
+    // Prüfe ob ich am Zug bin
+    if (!isMyTurn) {
+      Alert.alert('Nicht dein Zug', 'Warte bis dein Gegner gezogen hat.');
+      return;
+    }
+    
     const { selectedPiece, currentPlayer, pieces } = gameState;
     const currentPlayerPieces = pieces[currentPlayer];
     const pieceAtCell = currentPlayerPieces.find(p => p.row === row && p.col === col);
 
     // Wenn eine eigene Figur angeklickt wird, selektiere sie
     if (pieceAtCell && pieceAtCell.player === currentPlayer) {
-      setGameState(prev => ({
-        ...prev,
+      const newState = {
+        ...gameState,
         selectedPiece: pieceAtCell,
-      }));
+      };
+      setGameState(newState);
+      updateGameState(newState);
       return;
     }
 
@@ -46,60 +86,80 @@ export default function GameScreen() {
     if (enemyPiece) {
       // Kampf!
       const result = calculateCombatResult(selectedPiece.type, enemyPiece.type);
+      let newState;
       
       if (result === 'win') {
         // Angreifer gewinnt - entferne gegnerische Figur
-        setGameState(prev => ({
-          ...prev,
+        newState = {
+          ...gameState,
           pieces: {
-            ...prev.pieces,
-            [opponent]: prev.pieces[opponent].filter(p => p.id !== enemyPiece.id),
-            [currentPlayer]: prev.pieces[currentPlayer].map(p =>
+            ...gameState.pieces,
+            [opponent]: gameState.pieces[opponent].filter(p => p.id !== enemyPiece.id),
+            [currentPlayer]: gameState.pieces[currentPlayer].map(p =>
               p.id === selectedPiece.id ? { ...p, row, col } : p
             ),
           },
           selectedPiece: null,
           currentPlayer: switchPlayer(currentPlayer),
-        }));
+        };
         Alert.alert('Kampf gewonnen!', `${selectedPiece.type} hat ${enemyPiece.type} besiegt!`);
       } else if (result === 'lose') {
         // Verteidiger gewinnt - entferne angreifende Figur
-        setGameState(prev => ({
-          ...prev,
+        newState = {
+          ...gameState,
           pieces: {
-            ...prev.pieces,
-            [currentPlayer]: prev.pieces[currentPlayer].filter(p => p.id !== selectedPiece.id),
+            ...gameState.pieces,
+            [currentPlayer]: gameState.pieces[currentPlayer].filter(p => p.id !== selectedPiece.id),
           },
           selectedPiece: null,
           currentPlayer: switchPlayer(currentPlayer),
-        }));
+        };
         Alert.alert('Kampf verloren!', `${enemyPiece.type} hat ${selectedPiece.type} besiegt!`);
       } else {
         // Unentschieden - beide bleiben stehen
-        setGameState(prev => ({
-          ...prev,
+        newState = {
+          ...gameState,
           selectedPiece: null,
           currentPlayer: switchPlayer(currentPlayer),
-        }));
+        };
         Alert.alert('Unentschieden', 'Beide Figuren bleiben stehen.');
       }
+      
+      setGameState(newState);
+      updateGameState(newState);
     } else {
       // Normale Bewegung
-      setGameState(prev => ({
-        ...prev,
+      const newState = {
+        ...gameState,
         pieces: {
-          ...prev.pieces,
-          [currentPlayer]: prev.pieces[currentPlayer].map(p =>
+          ...gameState.pieces,
+          [currentPlayer]: gameState.pieces[currentPlayer].map(p =>
             p.id === selectedPiece.id ? { ...p, row, col } : p
           ),
         },
         selectedPiece: null,
         currentPlayer: switchPlayer(currentPlayer),
-      }));
+      };
+      setGameState(newState);
+      updateGameState(newState);
     }
-  }, [gameState]);
+  }, [gameState, isMyTurn, gameRoomId]);
+  
+  const updateGameState = useCallback((newState) => {
+    if (!gameRoomId) return;
+    const gameRef = ref(database, `games/${gameRoomId}`);
+    set(gameRef, newState);
+  }, [gameRoomId]);
 
-  const currentPlayerName = gameState.currentPlayer === PLAYERS.PLAYER_1 ? 'Spieler 1' : 'Spieler 2';
+  const currentPlayerName = gameState.currentPlayer === PLAYERS.PLAYER_1 
+    ? (gameState.player1Name || 'Spieler 1') 
+    : (gameState.player2Name || 'Spieler 2');
+  const myName = playerName || (assignedPlayer === PLAYERS.PLAYER_1 
+    ? (gameState.player1Name || 'Du') 
+    : (gameState.player2Name || 'Du'));
+  const opponentName = assignedPlayer === PLAYERS.PLAYER_1 
+    ? (gameState.player2Name || 'Gegner') 
+    : (gameState.player1Name || 'Gegner');
 
   return (
     <View style={styles.container}>
@@ -107,8 +167,11 @@ export default function GameScreen() {
       
       <View style={styles.header}>
         <Text style={styles.title}>DuelGrid</Text>
-        <Text style={styles.currentPlayer}>
-          Aktueller Spieler: {currentPlayerName}
+        <Text style={styles.playerInfo}>
+          {myName} vs {opponentName}
+        </Text>
+        <Text style={[styles.currentPlayer, !isMyTurn && styles.notMyTurn]}>
+          {isMyTurn ? 'Du bist am Zug' : `${currentPlayerName} ist am Zug`}
         </Text>
       </View>
 
@@ -140,8 +203,17 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_PRIMARY,
     marginBottom: 10,
   },
+  playerInfo: {
+    fontSize: 16,
+    color: COLORS.TEXT_SECONDARY,
+    marginBottom: 5,
+  },
   currentPlayer: {
     fontSize: 18,
+    color: COLORS.SUCCESS,
+    fontWeight: 'bold',
+  },
+  notMyTurn: {
     color: COLORS.TEXT_SECONDARY,
   },
   boardContainer: {
