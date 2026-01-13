@@ -1,33 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { COLORS } from '../constants';
 import multiplayerService from '../services/multiplayer';
 
 /**
- * Lobby-Screen: Spieler wählt seinen Namen (Stefan oder Finn)
+ * Lobby-Screen: Spieler gibt seinen Namen ein
  */
 export default function LobbyScreen({ onGameStart }) {
-  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [playerName, setPlayerName] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [gameRoomId, setGameRoomId] = useState(null);
   const [gameState, setGameState] = useState(null);
   const [opponent, setOpponent] = useState(null);
 
-  const handlePlayerSelect = async (playerName) => {
+  const handleJoinGame = async () => {
     if (isConnecting) return;
     
-    setSelectedPlayer(playerName);
+    // Validierung
+    const trimmedName = playerName.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      Alert.alert('Ungültiger Name', 'Bitte gib einen Namen mit mindestens 2 Zeichen ein.');
+      return;
+    }
+    
+    if (trimmedName.length > 20) {
+      Alert.alert('Name zu lang', 'Bitte gib einen Namen mit maximal 20 Zeichen ein.');
+      return;
+    }
+    
     setIsConnecting(true);
 
     try {
       const roomId = await multiplayerService.joinOrCreateGame(
-        playerName,
+        trimmedName,
         (newGameState) => {
           setGameState(newGameState);
         },
         (players) => {
-          const opponentName = players.player1 === playerName ? players.player2 : players.player1;
+          const opponentName = players.player1 === trimmedName ? players.player2 : players.player1;
           setOpponent(opponentName);
           Alert.alert(
             'Spieler gefunden!',
@@ -48,28 +59,31 @@ export default function LobbyScreen({ onGameStart }) {
       console.error('Fehler beim Beitreten:', error);
       Alert.alert('Fehler', 'Konnte nicht zum Spiel beitreten. Bitte versuche es erneut.');
       setIsConnecting(false);
-      setSelectedPlayer(null);
+      setPlayerName('');
     }
   };
 
   // Wenn das Spiel gestartet wurde, benachrichtige die App
   useEffect(() => {
-    if (gameState && onGameStart && gameRoomId) {
+    if (gameState && onGameStart && gameRoomId && playerName.trim()) {
       onGameStart({
         gameRoomId,
-        playerName: selectedPlayer,
+        playerName: playerName.trim(),
         gameState,
       });
     }
-  }, [gameState, gameRoomId, selectedPlayer, onGameStart]);
+  }, [gameState, gameRoomId, playerName, onGameStart]);
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <StatusBar style="auto" />
       
       <View style={styles.content}>
         <Text style={styles.title}>DuelGrid</Text>
-        <Text style={styles.subtitle}>Wähle deinen Spieler</Text>
+        <Text style={styles.subtitle}>Gib deinen Namen ein</Text>
 
         {isConnecting ? (
           <View style={styles.loadingContainer}>
@@ -79,36 +93,38 @@ export default function LobbyScreen({ onGameStart }) {
             </Text>
           </View>
         ) : (
-          <View style={styles.playerSelection}>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Dein Name (z.B. Stefan, Finn, Lewin...)"
+              placeholderTextColor={COLORS.TEXT_SECONDARY}
+              value={playerName}
+              onChangeText={setPlayerName}
+              maxLength={20}
+              autoCapitalize="words"
+              autoCorrect={false}
+              editable={!isConnecting}
+            />
             <TouchableOpacity
               style={[
-                styles.playerButton,
-                selectedPlayer === 'Stefan' && styles.playerButtonSelected,
+                styles.joinButton,
+                (!playerName.trim() || playerName.trim().length < 2) && styles.joinButtonDisabled
               ]}
-              onPress={() => handlePlayerSelect('Stefan')}
+              onPress={handleJoinGame}
+              disabled={!playerName.trim() || playerName.trim().length < 2 || isConnecting}
             >
-              <Text style={styles.playerButtonText}>Stefan</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.playerButton,
-                selectedPlayer === 'Finn' && styles.playerButtonSelected,
-              ]}
-              onPress={() => handlePlayerSelect('Finn')}
-            >
-              <Text style={styles.playerButtonText}>Finn</Text>
+              <Text style={styles.joinButtonText}>Spiel beitreten</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {selectedPlayer && !isConnecting && (
+        {playerName.trim() && !isConnecting && (
           <Text style={styles.info}>
-            Du bist: {selectedPlayer}
+            Bereit als: {playerName.trim()}
           </Text>
         )}
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -136,26 +152,37 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_SECONDARY,
     marginBottom: 40,
   },
-  playerSelection: {
+  inputContainer: {
     width: '100%',
     gap: 20,
   },
-  playerButton: {
+  input: {
     backgroundColor: COLORS.BOARD_LIGHT,
-    padding: 20,
-    borderRadius: 12,
     borderWidth: 2,
     borderColor: COLORS.BOARD_DARK,
-    alignItems: 'center',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 18,
+    color: COLORS.TEXT_PRIMARY,
+    textAlign: 'center',
   },
-  playerButtonSelected: {
+  joinButton: {
     backgroundColor: COLORS.PLAYER_1,
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 2,
     borderColor: COLORS.PLAYER_1,
   },
-  playerButtonText: {
-    fontSize: 24,
+  joinButtonDisabled: {
+    backgroundColor: COLORS.BOARD_DARK,
+    borderColor: COLORS.BOARD_DARK,
+    opacity: 0.5,
+  },
+  joinButtonText: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.TEXT_PRIMARY,
+    color: '#fff',
   },
   loadingContainer: {
     alignItems: 'center',

@@ -19,7 +19,7 @@ class MultiplayerService {
 
   /**
    * Erstellt oder tritt einem Spiel bei
-   * @param {string} playerName - 'Stefan' oder 'Finn'
+   * @param {string} playerName - Name des Spielers (beliebiger Name)
    * @param {Function} onGameStateChange - Callback für Spielzustandsänderungen
    * @param {Function} onPlayerJoined - Callback wenn ein Spieler beitritt
    * @returns {Promise<string>} - Spielraum-ID
@@ -143,7 +143,7 @@ class MultiplayerService {
 
   /**
    * Gibt die Spieler-ID zurück
-   * @returns {string} - 'Stefan' oder 'Finn'
+   * @returns {string} - Name des Spielers
    */
   getPlayerId() {
     return this.currentPlayerId;
