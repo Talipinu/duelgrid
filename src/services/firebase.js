@@ -1,17 +1,16 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 
-// Firebase-Konfiguration
-// TODO: Ersetze diese Werte mit deinen eigenen Firebase-Credentials
-// Du kannst ein kostenloses Firebase-Projekt unter https://console.firebase.google.com erstellen
+// Firebase-Konfiguration für DuelGrid
 const firebaseConfig = {
-  apiKey: "your-api-key",
-  authDomain: "your-project.firebaseapp.com",
-  databaseURL: "https://your-project-default-rtdb.firebaseio.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "your-app-id"
+  apiKey: "AIzaSyAgDE9BXGg2J8dU8Wuc6WmWcXSv5mT88Fg",
+  authDomain: "duelgrid-995b4.firebaseapp.com",
+  databaseURL: "https://duelgrid-995b4-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "duelgrid-995b4",
+  storageBucket: "duelgrid-995b4.firebasestorage.app",
+  messagingSenderId: "683811255253",
+  appId: "1:683811255253:web:0083da6b78c3943853435c",
+  measurementId: "G-B3RQYVSW7J"
 };
 
 // Initialisiere Firebase
