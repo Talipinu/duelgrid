@@ -14,22 +14,27 @@ import { database } from '../services/firebase';
  * Haupt-Spielbildschirm (Multiplayer)
  */
 export default function GameScreen({ gameRoomId, playerName, initialGameState }) {
-  const [gameState, setGameState] = useState(initialGameState || createInitialGameState());
+  const [gameState, setGameState] = useState(initialGameState || null);
   const [isMyTurn, setIsMyTurn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
   const assignedPlayer = multiplayerService.getAssignedPlayer();
   
   useEffect(() => {
-    if (!gameRoomId) return;
+    if (!gameRoomId) {
+      setIsLoading(false);
+      return;
+    }
     
     // Synchronisiere Spielzustand von Firebase
     const gameRef = ref(database, `games/${gameRoomId}`);
     const listener = onValue(gameRef, (snapshot) => {
       const remoteGameState = snapshot.val();
-      if (remoteGameState) {
+      if (remoteGameState && remoteGameState.pieces) {
         setGameState(remoteGameState);
         // Prüfe ob ich am Zug bin
         setIsMyTurn(remoteGameState.currentPlayer === assignedPlayer);
+        setIsLoading(false);
       }
     });
     
@@ -151,6 +156,19 @@ export default function GameScreen({ gameRoomId, playerName, initialGameState })
     set(gameRef, newState);
   }, [gameRoomId]);
 
+  // Zeige Ladebildschirm wenn noch keine Daten vorhanden
+  if (isLoading || !gameState || !gameState.pieces) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="auto" />
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Lade Spielzustand...</Text>
+          <Text style={styles.loadingSubtext}>Warte auf Gegner...</Text>
+        </View>
+      </View>
+    );
+  }
+
   const currentPlayerName = gameState.currentPlayer === PLAYERS.PLAYER_1 
     ? (gameState.player1Name || 'Spieler 1') 
     : (gameState.player2Name || 'Spieler 2');
@@ -221,6 +239,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 20,
+    color: COLORS.TEXT_PRIMARY,
+    marginBottom: 10,
+  },
+  loadingSubtext: {
+    fontSize: 16,
+    color: COLORS.TEXT_SECONDARY,
   },
 });
 
